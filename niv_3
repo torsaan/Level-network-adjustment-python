@@ -1,0 +1,230 @@
+import numpy as np
+import scipy.stats as stats
+import matplotlib.pyplot as plt
+from scipy.stats import chi2
+
+# Observations from 6 leveling runs 1,2,3,4,5,6
+OBS1 = 0.83445 #A1-B1 
+OBS2 = 0.16728 # A1- S2 
+OBS3 = 0.66933 #A1-S3 
+OBS4 = -4.65213  #B1-S2
+OBS5 =-4.48193 #S3-B1  
+OBS6 =  -3.81573  #S2-S3 
+
+#Matrise og diag for vekting 
+OBS = np.matrix([OBS1,OBS2,OBS3,OBS4,OBS5,OBS6])
+OBS_D = np.matrix(np.diag(OBS.A1)) 
+
+# Known point
+known_point = 187.739
+#Ass.point
+B1C = known_point + OBS1 #A1-B1
+S2C = known_point + OBS2 #A1-S2
+S3C = known_point + OBS3 #A1-S3
+
+
+#L Matrix
+V1 = B1C - known_point - OBS1
+V2 = S2C - known_point - OBS2
+V3 = S3C - known_point - OBS3
+V4 = S2C - B1C - OBS4
+V5 = -B1C + S3C - OBS5
+V6 = S3C - S2C - OBS6 
+
+
+err = 0.109  #forventet feil 
+lengde = np.matrix([0.06923, 0.18500,0.11649, 0.26571, 0.40089,0.27607])#OBS lengde 1,2,3,4,5,6 i KM 
+lengde_m = np.dot(lengde,err)# Lengde*err 
+lengde_m2 = np.power(lengde_m.A1,2)
+P = np.matrix(np.diag(np.divide(1,lengde_m2)))
+
+
+#A Matrise (dh_x)
+A = np.matrix([[1,0,0],[0,1,0],[0,0,1],[-1,1,0],[1,0,-1],[0,-1,1]])
+AT = A.T
+#L Matrise 
+L = np.matrix([V1,V2,V3,V4,V5,V6]).T
+
+# Solving the normal equation… 
+x_1 = AT * P * A
+x_2 = AT * P * L
+x = x_1.I * x_2
+
+#Applying the x solutions to the observation equations…
+V = A * x -L
+R = np.dot(np.dot(P, V), np.transpose(V))
+
+
+#Correcting observations 
+OBS_KOR = np.array([OBS.A1 + V.A1])
+OBS_KOR = OBS_KOR.flatten()
+
+#Corrected Heights 
+B1C_K = known_point + OBS_KOR[0] #A1-B1
+S2C_K = known_point + OBS_KOR[1] #A1-S2
+S3C_K = known_point + OBS_KOR[2] #A1-S3
+
+
+
+#*Standard deviation of the unknown parameters*#
+#Cofactor Matrix
+Qxx = np.linalg.inv(A.T @ P @ A)
+Quu=A*Qxx*A.T
+SUMuu = R.item(0,0) * Quu
+#Covariance matrix
+SUMxx = R.item(0,0) * np.linalg.inv(A.T @ P @ A)
+Vxx = np.diagonal(Qxx)
+STDxx = np.sqrt(np.diagonal(np.linalg.inv(A.T @ P @ A)))
+#STDxx = np.reshape(STDxx, (3,1))
+##Standard deviation of the adjusted observations
+Vuu = np.diagonal(Quu)
+STDuu = np.sqrt(Vuu)
+
+#Standard deviation of the residuals
+Qvv = OBS_D.T*Quu*OBS_D 
+SUMvv = R.item(0,0) * Qvv
+Vvv = np.diagonal(Qvv)
+STDvv = np.sqrt(Vvv)
+
+
+#NABLA 
+# Convert the matrix to a 1D array
+L_array = np.ravel(L)
+# Store each value individually
+V1_1, V2_1, V3_1, V4_1, V5_1, V6_1 = L_array
+
+print("En verdi rest V1_1",V1_1)
+
+
+# Extract the diagonal elements from P and store them as individual values
+p1, p2, p3, p4, p5, p6 = np.diag(P)
+print("En verdi vekting p1", p1)
+
+
+# Extract the diagonal elements from Qvv and store them as individual variables
+Qvv_1, Qvv_2, Qvv_3, Qvv_4, Qvv_5, Qvv_6 = np.diag(Qvv)
+print("En verdi Qvv , Qvv_1",Qvv_1)
+
+Q_nabla_nabla1 = 1/(p1*Qvv_1*p1) #nabla
+Q_nabla_nabla2 = 1/(p2*Qvv_2*p2)
+Q_nabla_nabla3 = 1/(p3*Qvv_3*p3)
+Q_nabla_nabla4 = 1/(p4*Qvv_4*p4)
+Q_nabla_nabla5 = 1/(p5*Qvv_5*p5)
+Q_nabla_nabla6 = 1/(p6*Qvv_6*p6)
+print("En verdi q nabla , 1 :",Q_nabla_nabla1)
+
+
+nabla1 = -p1*V1_1*Q_nabla_nabla1
+nabla2 = -p2*V2_1*Q_nabla_nabla2
+nabla3 = -p3*V3_1*Q_nabla_nabla3
+nabla4 = -p4*V4_1*p4
+nabla5 = -p5*V5_1*p4
+nabla6 = -p6*V6_1*p4
+print("En verdi nabla , nabla1",nabla1)
+df=3
+s01 = np.sqrt((1/(df-1))*(V.T*P*V-((nabla1)**2)/Q_nabla_nabla1 ))
+s02 = np.sqrt((1/(df-1))*(V.T*P*V-((nabla2)**2)/Q_nabla_nabla2 ))
+s03 = np.sqrt((1/(df-1))*(V.T*P*V-((nabla3)**2)/Q_nabla_nabla3 ))
+s04 = np.sqrt(-(1/(df-1))*(V.T*P*V-((nabla4)**2)/Q_nabla_nabla4 ))
+s05 = np.sqrt(-(1/(df-1))*(V.T*P*V-((nabla5)**2)/Q_nabla_nabla5 ))
+s06 = np.sqrt(-(1/(df-1))*(V.T*P*V-((nabla6)**2)/Q_nabla_nabla6 ))
+
+print("En verdi for s01:",s01)
+s_nabla1 = s01*np.sqrt(Q_nabla_nabla1 )
+s_nabla2 = s02*np.sqrt(Q_nabla_nabla2)
+s_nabla3 = s03*np.sqrt(Q_nabla_nabla3 )
+s_nabla4 = s04*np.sqrt(Q_nabla_nabla4 )
+s_nabla5 = s05*np.sqrt(Q_nabla_nabla5 )
+s_nabla6 = s06*np.sqrt(Q_nabla_nabla6)
+print("S_nabla1 en verdi :",s_nabla1)
+
+ff= 6-3-1 #D.O.F.
+p = (1-0.05)#**(1/6) #Significance.lvl
+
+t1=nabla1/s_nabla1
+t2=nabla2/s_nabla2
+t3=nabla3/s_nabla3
+t4=nabla4/s_nabla4
+t5=nabla5/s_nabla5
+t6=nabla6/s_nabla6
+print(t1)
+print(t2)
+print(t3)
+print(t4)
+print(t5)
+print(t6)
+#grenseverdi t absolutt verdi 
+t_verdi = stats.t.ppf(1-p, ff) 
+print("T value:",t_verdi)
+print("Degrees of freedom:",ff)
+print("Significance level:",1-p)
+
+
+
+#CHI TEST                       ####################################
+# Define the significance level
+significance_level = 0.05
+
+# Define the degrees of freedom and chi-square statistic
+df = 3
+chi_square_stat = np.sqrt(R.item(0,0)/df)
+print("Significance level:",significance_level)
+print("Degrees of freedom:",df)
+print("Chi square stat:",chi_square_stat)
+
+
+# Calculate the critical values for the two-tailed test
+critical_value_lower = chi2.ppf(significance_level/2, df)
+critical_value_upper = chi2.ppf(1 - significance_level/2, df)
+print("Lower Limit Chi:",critical_value_lower)
+print("Upper Limit Chi:",critical_value_upper)
+
+
+# Set up the plot
+x = np.linspace(chi2.ppf(0.001, df), chi2.ppf(0.999, df), 1000)
+y = chi2.pdf(x, df)
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(x, y, 'k-', lw=2, label='Chi-Square PDF')
+
+# Shade the critical region
+ax.fill_between(x, 0, y, where=(x <= critical_value_lower) | (x >= critical_value_upper), 
+                color='red', alpha=0.2)
+
+# Add vertical lines for the critical values and the chi-square statistic
+ax.axvline(critical_value_lower, color='red', linestyle='--', lw=2, label='Critical Region')
+ax.axvline(critical_value_upper, color='red', linestyle='--', lw=2)
+ax.axvline(chi_square_stat, color='blue', linestyle='-', lw=2, label='Chi-Square Statistic')
+
+# Add labels and legend
+ax.set_title(f'Two-Tailed Chi-Square Test (DF={df}, Sig. Level={significance_level})')
+ax.set_xlabel('Chi-Square Statistic')
+ax.set_ylabel('Probability Density')
+ax.legend()
+
+plt.show()
+
+#Remove hashtag to print 
+#print("t-statistic:", t)
+#print("p-value:", p)
+#print (A) # A Matrise 
+#print(np.resize(np.matrix(np.divide(1,lengde_m2)), [6, 1])) ## P Matrise 
+#print (L) #L Konstant matrise 
+#print (x) #𝒙 vector (vector of the unknown parameters; corrections for the preliminary elevations) 
+#print(V) #𝒗 vector (residuals) 
+#print (np.resize(OBS_KOR,[6,1])) #Corrected Observations 
+#print (" B1",B1C_K,'\n','S2',S2C_K,'\n',"S3",S3C_K) #Corrected Heights
+#print('𝒗𝑻∙𝑷∙𝒗', R.item(0, 0)) #(weighted sum of the squares of the residuals) 
+#print("𝒔^𝟐_𝟎", R.item(0, 0)/2) #DENNE ER VIKTIG 
+#print(np.reshape(STDxx, [3,1])) # extracting the variances from the diagonal and processing their square roots:
+#print (np.reshape(STDxx, (3,1))) #DENNE ER VIKTIG  UKNOWN PARAMETERS
+#print(np.reshape(STDuu,(6,1))) #Standard deviation of the adjusted observations
+#print(np.reshape(STDvv,(6,1))) # Standard deviation of the residuals 
+#print ('B1 PRELIM:',B1C,'S2 PRELIM:',S2C,'S3 PRELIM:',S3C) PRELIM VALUES B1 S2 S3 
+
+
+##CHI TEST PRINT 
+#print(chi_square_stat)
+#print("DOF:",df)
+#print("Sign.lvl: ",significance_level)
+#print("Lower Limit:",critical_value_lower)
+#print("Upper Limit:",critical_value_upper)
